@@ -151,7 +151,7 @@ async def transcribe(
 
     mdl, proc, dev = get_model()
 
-    inputs = proc(audios=waveform, return_tensors="pt", sampling_rate=16000)
+    inputs = proc(audio=waveform, return_tensors="pt", sampling_rate=16000)
     inputs = {k: v.to(dev) for k, v in inputs.items()}
 
     with torch.inference_mode():
