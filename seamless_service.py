@@ -7,8 +7,9 @@ the Whisper vLLM backend without changing the caller.
 
 Run in the 'seamless' conda environment on port 8004:
     conda activate seamless
-    pip install fastapi uvicorn python-multipart transformers sentencepiece protobuf soundfile torchaudio
     pip install torch --index-url https://download.pytorch.org/whl/cu121
+    pip install fastapi uvicorn python-multipart transformers sentencepiece protobuf soundfile
+    # (ffmpeg must be installed on the system)
     uvicorn seamless_service:app --host 0.0.0.0 --port 8004
 """
 
@@ -70,50 +71,37 @@ def get_model():
 
 
 def read_audio_to_16k_mono(audio_bytes: bytes):
-    """Decode arbitrary audio bytes into 16kHz mono float32 numpy array."""
-    import numpy as np
+    """
+    Decode arbitrary audio bytes into 16kHz mono float32 numpy array.
+    Uses ffmpeg for both decoding and resampling in a single pass - no torchaudio needed.
+    """
     import soundfile as sf
 
-    # Try reading directly with soundfile
+    tmp = Path(tempfile.mkdtemp(prefix="seamless_"))
     try:
-        buf = io.BytesIO(audio_bytes)
-        waveform, sr = sf.read(buf, dtype="float32", always_2d=True)
-    except Exception:
-        # Fall back to ffmpeg conversion
-        tmp = Path(tempfile.mkdtemp(prefix="seamless_"))
-        try:
-            inp = tmp / "input"
-            inp.write_bytes(audio_bytes)
-            outp = tmp / "out.wav"
-            r = subprocess.run(
-                [
-                    "ffmpeg", "-y", "-i", str(inp),
-                    "-acodec", "pcm_s16le",
-                    "-ar", "16000", "-ac", "1",
-                    str(outp),
-                ],
-                capture_output=True, text=True,
-            )
-            if r.returncode != 0:
-                raise HTTPException(400, f"ffmpeg decode failed: {r.stderr[:300]}")
-            waveform, sr = sf.read(str(outp), dtype="float32", always_2d=True)
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
+        inp = tmp / "input"
+        inp.write_bytes(audio_bytes)
+        outp = tmp / "out.wav"
+        r = subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", str(inp),
+                "-acodec", "pcm_s16le",
+                "-ar", "16000",   # resample to 16kHz
+                "-ac", "1",       # mono
+                str(outp),
+            ],
+            capture_output=True, text=True,
+        )
+        if r.returncode != 0:
+            raise HTTPException(400, f"ffmpeg decode failed: {r.stderr[:500]}")
 
-    # Mono
-    if waveform.shape[1] > 1:
-        waveform = waveform.mean(axis=1)
-    else:
+        waveform, sr = sf.read(str(outp), dtype="float32")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # Already mono from ffmpeg, but guard against edge cases
+    if waveform.ndim > 1:
         waveform = waveform[:, 0]
-
-    # Resample to 16k
-    if sr != 16000:
-        import torch
-        import torchaudio
-        w = torch.from_numpy(waveform).unsqueeze(0)
-        w = torchaudio.functional.resample(w, sr, 16000)
-        waveform = w.squeeze(0).numpy()
-        sr = 16000
 
     return waveform, sr
 

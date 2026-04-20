@@ -93,8 +93,8 @@ Create a dedicated environment and install dependencies:
 conda create -n seamless python=3.10 -y
 conda activate seamless
 
-# PyTorch with CUDA 12.1
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+# PyTorch with CUDA 12.1 (torchaudio NOT needed - ffmpeg handles decoding/resampling)
+pip install torch --index-url https://download.pytorch.org/whl/cu121
 
 # Transformers + friends
 pip install transformers sentencepiece protobuf soundfile
