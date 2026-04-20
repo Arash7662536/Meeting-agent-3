@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Secrets / env files
+.env
+.env.*
+*.key
+*.pem
+credentials.json
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Model / pipeline outputs
+output/
+temp/
+*.wav
+*.mp3
+*.mp4
+*.mkv
+*.flac
+*.m4a
+*.webm
+*.avi
+*.mov
+
+# Logs
+*.log
+
+# HuggingFace cache (if downloaded locally)
+.cache/
+hf_cache/
+
+# Gradio
+gradio_cached_examples/
+flagged/
