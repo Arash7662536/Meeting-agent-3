@@ -155,21 +155,26 @@ async def transcribe(
     inputs = {k: v.to(dev) for k, v in inputs.items()}
 
     with torch.inference_mode():
-        output_tokens = mdl.generate(
+        output = mdl.generate(
             **inputs,
             tgt_lang=tgt_lang,
             generate_speech=False,
         )
 
-    # SeamlessM4Tv2Model.generate returns a tuple when generate_speech=False;
-    # the first element is the text token tensor.
-    if isinstance(output_tokens, tuple):
-        token_tensor = output_tokens[0]
+    # generate() output shape varies across transformers versions:
+    #   - ModelOutput with .sequences
+    #   - tuple/list whose first element is the token tensor
+    #   - a raw token tensor of shape [batch, seq_len]
+    if hasattr(output, "sequences"):
+        sequences = output.sequences
+    elif isinstance(output, (tuple, list)):
+        sequences = output[0]
     else:
-        token_tensor = output_tokens
+        sequences = output
 
-    tokens = token_tensor[0].tolist()
-    text = proc.decode(tokens, skip_special_tokens=True)
+    # batch_decode always returns a list[str] -> take first element
+    texts = proc.batch_decode(sequences, skip_special_tokens=True)
+    text = texts[0] if texts else ""
 
     return {"text": text.strip()}
 
